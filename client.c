@@ -6,12 +6,10 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#define MAX_REQUEST_SIZE 2048
-#define MAX_RESPONSE_SIZE 8192
 #define DEFAULT_PORT 80
 
 // Define DEBUG to enable debug prints
-#define DEBUG 0
+#define DEBUG 1
 
 // Macro for conditional debug printing
 #if DEBUG
@@ -20,174 +18,161 @@
     #define DEBUG_PRINT(fmt, ...) // No-operation
 #endif
 
-// Struct to encapsulate URL details
 typedef struct {
-    char host[256];
-    char path[1024];
+    char *host;
+    char *path;
     int port;
 } URLDetails;
 
-// Function declarations
-void parse_command_line(int argc, char *argv[], char **url, char *parameters);
+void parse_command_line(int argc, char *argv[], char **url, char **parameters);
 void parse_url(const char *url, URLDetails *details);
-void construct_request(const URLDetails *details, const char *parameters, char *request);
+char *construct_request(const URLDetails *details, const char *parameters);
 int connect_to_server(const URLDetails *details);
 void send_request(int sock, const char *request);
-void receive_response(int sock, char *response, int *response_size);
-void handle_redirect(const char *response, char *redirect_url);
+char *receive_response(int sock, int *response_size);
+void handle_redirect(const char *response, char **redirect_url);
 void print_usage_and_exit();
 
 int main(int argc, char *argv[]) {
     DEBUG_PRINT("Starting client program.\n");
 
     char *url = NULL;
-    char parameters[1024] = "";
-    char request[MAX_REQUEST_SIZE], response[MAX_RESPONSE_SIZE];
+    char *parameters = NULL;
     int response_size;
 
-    // Parse command-line arguments
-    parse_command_line(argc, argv, &url, parameters);
+    parse_command_line(argc, argv, &url, &parameters);
 
-    // Parse URL
-    URLDetails details;
+    URLDetails details = {0};
     parse_url(url, &details);
 
-    // Construct HTTP request
-    construct_request(&details, parameters, request);
-    DEBUG_PRINT("HTTP request =\n%s\nLEN = %ld\n", request, strlen(request));
+    char *request = construct_request(&details, parameters);
+    DEBUG_PRINT("HTTP request =\n%s\n", request);
 
-    // Connect to server
     int socket = connect_to_server(&details);
-
-    // Send HTTP request
     send_request(socket, request);
 
-    // Receive HTTP response
-    receive_response(socket, response, &response_size);
+    char *response = receive_response(socket, &response_size);
     printf("%s\n", response);
     printf("\n  Total received response bytes: %d\n", response_size);
 
-    // Handle redirects if necessary
     if (strncmp(response, "HTTP/1.1 3", 10) == 0) {
-        char redirect_url[1024];
-        handle_redirect(response, redirect_url);
-        if (strlen(redirect_url) > 0) {
+        char *redirect_url = NULL;
+        handle_redirect(response, &redirect_url);
+        if (redirect_url) {
             close(socket);
             DEBUG_PRINT("Redirecting to: %s\n", redirect_url);
-            strcpy(argv[argc - 1], redirect_url);
-            execv(argv[0], argv); // Recursively call the program with the new URL
+            free(response);
+            free(request);
+            free(details.host);
+            free(details.path);
+            argv[argc - 1] = redirect_url;
+            execv(argv[0], argv);
         }
     }
 
     close(socket);
+    free(response);
+    free(request);
+    free(details.host);
+    free(details.path);
+    free(parameters);
+
     DEBUG_PRINT("Client program finished.\n");
     return 0;
 }
 
-void parse_command_line(int argc, char *argv[], char **url, char *parameters) {
+void parse_command_line(int argc, char *argv[], char **url, char **parameters) {
     DEBUG_PRINT("Parsing command-line arguments.\n");
 
     if (argc < 2) {
-        DEBUG_PRINT("Insufficient arguments provided.\n");
         print_usage_and_exit();
     }
 
-    int found_r = 0;  // Indicates if the "-r" option was found
-    int param_count = 0; // Number of parameters specified after "-r"
+    int found_r = 0, param_count = 0;
 
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-r") == 0) {
             found_r = 1;
-
-            // Validate that a number follows "-r"
             if (i + 1 >= argc || !isdigit(argv[i + 1][0])) {
-                DEBUG_PRINT("Has to be a number after -r.\n");
                 print_usage_and_exit();
             }
+            param_count = atoi(argv[++i]);
 
-            param_count = atoi(argv[++i]); // Get the number of parameters
-            DEBUG_PRINT("Found -r option with %d parameters.\n", param_count);
-
-            // Validate and collect parameters
+            size_t params_size = 1;
+            *parameters = calloc(1, params_size);
             for (int j = 0; j < param_count; ++j) {
-                if (i + 1 >= argc || strchr(argv[i + 1], '=') == NULL) {
-                    DEBUG_PRINT("Parameter %d is not in the correct format: name=value.\n", j + 1);
+                if (i + 1 >= argc || !strchr(argv[i + 1], '=')) {
                     print_usage_and_exit();
                 }
-                strcat(parameters, argv[++i]);
-                if (j < param_count - 1) strcat(parameters, "&");
-                DEBUG_PRINT("Added parameter: %s\n", parameters);
+                size_t len = strlen(argv[++i]) + 1;
+                *parameters = realloc(*parameters, params_size + len);
+                strcat(*parameters, argv[i]);
+                if (j < param_count - 1) strcat(*parameters, "&");
+                params_size += len;
             }
         } else if (!found_r || i == argc - 1) {
-            // The URL should be the last argument
             if (*url != NULL) {
-                DEBUG_PRINT("Too many parameters or URL is misplaced.\n");
                 print_usage_and_exit();
             }
             *url = argv[i];
-            DEBUG_PRINT("Found URL: %s\n", *url);
         } else {
-            DEBUG_PRINT("Unexpected argument: %s\n", argv[i]);
             print_usage_and_exit();
         }
     }
 
     if (!*url || strncmp(*url, "http://", 7) != 0) {
-        DEBUG_PRINT("Invalid or missing URL: %s\n", *url ? *url : "(null)");
         print_usage_and_exit();
     }
 
     DEBUG_PRINT("Final URL: %s\n", *url);
-    DEBUG_PRINT("Final Parameters: %s\n", parameters[0] ? parameters : "(none)");
+    DEBUG_PRINT("Final Parameters: %s\n", *parameters ? *parameters : "(none)");
 }
 
 void parse_url(const char *url, URLDetails *details) {
     DEBUG_PRINT("Parsing URL: %s\n", url);
 
-    const char *start = url + 7; // Skip "http://"
+    const char *start = url + 7;
     const char *colon = strchr(start, ':');
     const char *slash = strchr(start, '/');
 
     if (colon && (!slash || colon < slash)) {
-        // Host with a port specified
-        strncpy(details->host, start, colon - start);
-        details->host[colon - start] = '\0';
+        details->host = strndup(start, colon - start);
         details->port = atoi(colon + 1);
-        DEBUG_PRINT("Host: %s, Port: %d (custom)\n", details->host, details->port);
     } else {
-        // Host without a port
-        details->port = DEFAULT_PORT; // Default to port 80
+        details->port = DEFAULT_PORT;
         if (slash) {
-            strncpy(details->host, start, slash - start);
-            details->host[slash - start] = '\0';
+            details->host = strndup(start, slash - start);
         } else {
-            strncpy(details->host, start, strlen(start));
-            details->host[strlen(start)] = '\0';
+            details->host = strdup(start);
         }
-        DEBUG_PRINT("Host: %s, Port: %d (default)\n", details->host, details->port);
     }
 
     if (slash) {
-        strcpy(details->path, slash);
+        details->path = strdup(slash);
     } else {
-        strcpy(details->path, "/");
+        details->path = strdup("/");
     }
 
-    DEBUG_PRINT("Path: %s\n", details->path);
+    DEBUG_PRINT("Host: %s, Port: %d, Path: %s\n", details->host, details->port, details->path);
 }
 
-void construct_request(const URLDetails *details, const char *parameters, char *request) {
+char *construct_request(const URLDetails *details, const char *parameters) {
     DEBUG_PRINT("Constructing HTTP request.\n");
 
-    if (strlen(parameters) > 0) {
-        sprintf(request, "GET %s?%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
-                details->path, parameters, details->host);
+    size_t request_size = strlen(details->path) + strlen(details->host) + 64;
+    if (parameters) request_size += strlen(parameters) + 1;
+
+    char *request = malloc(request_size);
+    if (parameters) {
+        snprintf(request, request_size, "GET %s?%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
+                 details->path, parameters, details->host);
     } else {
-        sprintf(request, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
-                details->path, details->host);
+        snprintf(request, request_size, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
+                 details->path, details->host);
     }
 
     DEBUG_PRINT("Constructed Request:\n%s\n", request);
+    return request;
 }
 
 int connect_to_server(const URLDetails *details) {
@@ -234,39 +219,52 @@ void send_request(int sock, const char *request) {
     DEBUG_PRINT("Request sent successfully.\n");
 }
 
-void receive_response(int sock, char *response, int *response_size) {
+char *receive_response(int sock, int *response_size) {
     DEBUG_PRINT("Receiving HTTP response.\n");
 
-    *response_size = recv(sock, response, MAX_RESPONSE_SIZE - 1, 0);
-    if (*response_size < 0) {
-        perror("recv");
-        close(sock);
-        exit(EXIT_FAILURE);
-    }
-    response[*response_size] = '\0';
+    char buffer[1024];
+    char *response = NULL;
+    size_t total_size = 0;
 
-    DEBUG_PRINT("Received response (%d bytes).\n", *response_size);
+    while (1) {
+        int bytes_received = recv(sock, buffer, sizeof(buffer) - 1, 0);
+        if (bytes_received < 0) {
+            perror("recv");
+            free(response);
+            close(sock);
+            exit(EXIT_FAILURE);
+        } else if (bytes_received == 0) {
+            break;
+        }
+
+        buffer[bytes_received] = '\0';
+        response = realloc(response, total_size + bytes_received + 1);
+        memcpy(response + total_size, buffer, bytes_received + 1);
+        total_size += bytes_received;
+    }
+
+    *response_size = total_size;
+    DEBUG_PRINT("Received response (%ld bytes).\n", total_size);
+    return response;
 }
 
-void handle_redirect(const char *response, char *redirect_url) {
+void handle_redirect(const char *response, char **redirect_url) {
     DEBUG_PRINT("Handling redirect in response.\n");
 
     const char *location = strstr(response, "Location: ");
     if (location) {
-        location += 10; // Skip "Location: "
+        location += 10;
         const char *end = strchr(location, '\r');
         if (end) {
-            strncpy(redirect_url, location, end - location);
-            redirect_url[end - location] = '\0';
-            DEBUG_PRINT("Redirect URL: %s\n", redirect_url);
+            *redirect_url = strndup(location, end - location);
+            DEBUG_PRINT("Redirect URL: %s\n", *redirect_url);
         }
     } else {
-        DEBUG_PRINT("No redirect location found.\n");
+        *redirect_url = NULL;
     }
 }
 
 void print_usage_and_exit() {
-    DEBUG_PRINT("Printing usage and exiting.\n");
     fprintf(stderr, "Usage: client [-r n <pr1=value1 pr2=value2 ...>] <URL>\n");
     exit(EXIT_FAILURE);
 }
