@@ -10,7 +10,7 @@
 #define CHUNK_SIZE 1024
 
 // Define DEBUG to enable debug prints
-#define DEBUG 1
+#define DEBUG 0
 
 // Macro for conditional debug printing
 #if DEBUG
@@ -342,7 +342,8 @@ void handle_redirect(const char *response, char **redirect_url, const URLDetails
                 {
                     // Absolute path (starts with '/'), append to the host
                     full_url = malloc(strlen(current_url_details->host) + strlen(*redirect_url) + 8);
-                    snprintf(full_url, strlen(current_url_details->host) + strlen(*redirect_url) + 8, "http://%s%s", current_url_details->host, *redirect_url);
+                    snprintf(full_url, strlen(current_url_details->host) + strlen(*redirect_url) + 8,
+                        "http://%s%s", current_url_details->host, *redirect_url);
                 }
                 free(*redirect_url);
                 *redirect_url = full_url;
