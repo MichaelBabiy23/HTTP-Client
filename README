@@ -1,0 +1,120 @@
+# HTTP Client
+
+This project is a simple HTTP client implemented in C. The client constructs an HTTP request from command-line input, sends it to a web server, and displays the server's response. It supports HTTP redirections for 3xx responses and parameterized GET requests.
+
+## Features
+
+- Parses command-line arguments to construct an HTTP request.
+- Handles URLs with or without parameters.
+- Supports IPv4 connections.
+- Follows HTTP redirections (3xx status codes).
+- Provides debug mode for detailed trace logs.
+- Includes robust error handling and informative output.
+
+## Requirements
+
+- A C compiler, such as `gcc`.
+- An active internet connection to communicate with web servers.
+
+## Getting Started
+
+### Compilation
+
+To compile the program, run the following command:
+
+gcc -Wall -o client client.c
+
+To enable debug mode, compile with:
+
+gcc -DDEBUG -Wall -o client client.c
+
+### Usage
+
+The program can be run with the following syntax:
+
+./client [-r n param1=value1 param2=value2 ...] URL
+
+Parameters:
+
+- -r n: Specifies `n` parameters, each in the format `name=value`. These will be added as query parameters to the URL.
+- URL: The HTTP URL to request, which must begin with `http://`.
+
+### Examples
+
+1. Basic GET request:
+   ./client http://example.com
+
+   This sends a GET request to `http://example.com` and displays the response.
+
+2. GET request with parameters:
+   ./client -r 2 key1=value1 key2=value2 http://httpbin.org/get
+
+   This sends a request to `http://httpbin.org/get?key1=value1&key2=value2` and displays the response.
+
+3. Handling redirections:
+   ./client http://httpbin.org/absolute-redirect/3
+
+   This follows the redirection chain and displays the response from the final URL.
+
+### Debug Mode
+
+To enable detailed debug logs, compile the program with the `-DDEBUG` option:
+
+gcc -DDEBUG -Wall -o client client.c
+
+When run, debug information will be printed to the terminal, providing insights into the program's operation.
+
+Example debug output:
+
+[DEBUG] Parsing command-line arguments.  
+[DEBUG] Found URL: http://example.com  
+[DEBUG] Final URL: http://example.com  
+[DEBUG] Final Parameters: (none)  
+
+### Error Handling
+
+The program gracefully handles various errors, including:
+
+- Invalid command-line arguments
+- Host resolution failures
+- Connection errors
+- Malformed or invalid HTTP responses
+
+Example error output:
+
+[DEBUG] Invalid or missing URL: (null)  
+Usage: client [-r n param1=value1 param2=value2 ...] URL  
+
+## Project Structure
+
+- client.c: The source code of the HTTP client.
+- README.md: Documentation for the project.
+
+## Contributing
+
+Contributions are welcome! To contribute:
+
+1. Fork the repository.
+2. Create a feature branch using git checkout -b feature-name.
+3. Commit your changes using git commit -m "Add feature-name".
+4. Push your branch using git push origin feature-name.
+5. Open a pull request for review.
+
+## License
+
+This project is licensed under the MIT License.
+
+## Author
+
+Michael Babiy  
+Software engineering student focusing on low-level programming and systems development.
+
+## Acknowledgments
+
+- HTTP Protocol documentation from MDN Web Docs  
+- httpbin.org for providing a testing environment  
+- Example domain from example.com  
+
+---
+
+This README file adheres to GitHub standards while being simple and readable without special formatting characters. Let me know if you need further adjustments!
