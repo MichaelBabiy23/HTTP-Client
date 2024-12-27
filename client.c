@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,28 +77,44 @@ void parse_command_line(int argc, char *argv[], char **url, char *parameters) {
         print_usage_and_exit();
     }
 
+    int found_r = 0;  // Indicates if the "-r" option was found
+    int param_count = 0; // Number of parameters specified after "-r"
+
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "-r") == 0) {
-            if (i + 2 >= argc) {
-                fprintf(stderr, "[DEBUG] Missing arguments after -r.\n");
+            found_r = 1;
+
+            // Validate that a number follows "-r"
+            if (i + 1 >= argc || !isdigit(argv[i + 1][0])) {
+                fprintf(stderr, "[DEBUG] Has to be a number after -r.\n");
                 print_usage_and_exit();
             }
 
-            int n = atoi(argv[++i]);
-            printf("[DEBUG] Found -r option with %s parameters.\n", argv[i]);
+            param_count = atoi(argv[++i]); // Get the number of parameters
+            printf("[DEBUG] Found -r option with %d parameters.\n", param_count);
 
-            for (int j = 0; j < n; ++j) {
-                if (i + 1 >= argc) {
-                    fprintf(stderr, "[DEBUG] Too few parameters provided for -r.\n");
+            // Validate and collect parameters
+            for (int j = 0; j < param_count; ++j) {
+                if (i + 1 >= argc || strchr(argv[i + 1], '=') == NULL) {
+                    fprintf(stderr, "[DEBUG] Parameter %d is not in the correct format: name=value.\n", j + 1);
                     print_usage_and_exit();
                 }
                 strcat(parameters, argv[++i]);
-                if (j < n - 1) strcat(parameters, "&");
+                if (j < param_count - 1)
+                    strcat(parameters, "&");
                 printf("[DEBUG] Added parameter: %s\n", parameters);
             }
-        } else {
+        } else if (!found_r || i == argc - 1) {
+            // The URL should be the last argument
+            if (*url != NULL) {
+                fprintf(stderr, "[DEBUG] Too many parameters or URL is misplaced.\n");
+                print_usage_and_exit();
+            }
             *url = argv[i];
             printf("[DEBUG] Found URL: %s\n", *url);
+        } else {
+            fprintf(stderr, "[DEBUG] Unexpected argument: %s\n", argv[i]);
+            print_usage_and_exit();
         }
     }
 
