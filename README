@@ -1,6 +1,9 @@
 # HTTP Client
+Authored by Michael Babiy
 
-This project is a simple HTTP client implemented in C. The client constructs an HTTP request from command-line input, sends it to a web server, and displays the server's response. It supports HTTP redirections for 3xx responses and parameterized GET requests.
+This project is a simple HTTP client implemented in C. The client constructs an HTTP request from command-line input,
+sends it to a web server, and displays the server's response.
+It supports HTTP redirections for 3xx responses and parameterized GET requests.
 
 ## Features
 
@@ -89,32 +92,3 @@ Usage: client [-r n param1=value1 param2=value2 ...] URL
 
 - client.c: The source code of the HTTP client.
 - README.md: Documentation for the project.
-
-## Contributing
-
-Contributions are welcome! To contribute:
-
-1. Fork the repository.
-2. Create a feature branch using git checkout -b feature-name.
-3. Commit your changes using git commit -m "Add feature-name".
-4. Push your branch using git push origin feature-name.
-5. Open a pull request for review.
-
-## License
-
-This project is licensed under the MIT License.
-
-## Author
-
-Michael Babiy  
-Software engineering student focusing on low-level programming and systems development.
-
-## Acknowledgments
-
-- HTTP Protocol documentation from MDN Web Docs  
-- httpbin.org for providing a testing environment  
-- Example domain from example.com  
-
----
-
-This README file adheres to GitHub standards while being simple and readable without special formatting characters. Let me know if you need further adjustments!
