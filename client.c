@@ -125,8 +125,10 @@ void parse_command_line(int argc, char *argv[], char **url, char **parameters)
             for (int j = 0; j < param_count; ++j)
             {
                 if (i + 1 >= argc || !strchr(argv[i + 1], '='))
+                {
+                    free(*parameters);
                     print_usage_and_exit();
-
+                }
                 size_t len = strlen(argv[++i]) + 1;
                 // Safely reallocating memory for parameters string
                 char *temp = realloc(*parameters, params_size + len);
@@ -157,7 +159,10 @@ void parse_command_line(int argc, char *argv[], char **url, char **parameters)
     }
 
     if (!*url || strncmp(*url, "http://", 7) != 0)
+    {
+        free(*parameters);
         print_usage_and_exit();
+    }
 
     DEBUG_PRINT("Final URL: %s\n", *url);
     DEBUG_PRINT("Final Parameters: %s\n", *parameters ? *parameters : "(none)");
@@ -209,6 +214,7 @@ char *create_http_request(const URLDetails *details, const char *parameters)
         snprintf(request, request_size, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
                  details->path, details->host);
 
+    printf("HTTP request =\n%s\nLEN = %d\n", request, (int)strlen(request));
     DEBUG_PRINT("Created Request:\n%s\n", request);
     return request;
 }
