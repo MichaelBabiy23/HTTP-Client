@@ -31,11 +31,17 @@ char *construct_request(const URLDetails *details, const char *parameters);
 int connect_to_server(const URLDetails *details);
 void send_request(int sock, const char *request);
 char *receive_response(int sock, int *response_size);
-void handle_redirect(const char *response, char **redirect_url);
+void handle_redirect(const char *response, char **redirect_url, const URLDetails *current_url_details);
 void print_usage_and_exit();
 
 int main(int argc, char *argv[]) {
     DEBUG_PRINT("Starting client program.\n");
+
+    // Print all the arguments
+    DEBUG_PRINT("Program arguments:\n");
+    for (int i = 0; i < argc; ++i) {
+        DEBUG_PRINT("argv[%d]: %s\n", i, argv[i]);
+    }
 
     char *url = NULL;
     char *parameters = NULL;
@@ -58,7 +64,7 @@ int main(int argc, char *argv[]) {
 
     if (strncmp(response, "HTTP/1.1 3", 10) == 0) {
         char *redirect_url = NULL;
-        handle_redirect(response, &redirect_url);
+        handle_redirect(response, &redirect_url, &details);
         if (redirect_url) {
             close(socket);
             DEBUG_PRINT("Redirecting to: %s\n", redirect_url);
@@ -66,8 +72,11 @@ int main(int argc, char *argv[]) {
             free(request);
             free(details.host);
             free(details.path);
-            argv[argc - 1] = redirect_url;
-            execv(argv[0], argv);
+            char *new_argv[3];
+            new_argv[0] = argv[0]; // The program name
+            new_argv[1] = redirect_url; // The new URL for the redirect
+            new_argv[2] = NULL; // Null-terminate the arguments
+            execv(new_argv[0], new_argv); // Restart the program with the new URL
         }
     }
 
@@ -275,18 +284,44 @@ char *receive_response(int sock, int *response_size) {
     return response;
 }
 
-void handle_redirect(const char *response, char **redirect_url) {
+void handle_redirect(const char *response, char **redirect_url, const URLDetails *current_url_details) {
     DEBUG_PRINT("Handling redirect in response.\n");
 
     const char *location = strstr(response, "Location: ");
     if (location) {
-        location += 10;
+        location += 10;  // Skip "Location: " part
         const char *end = strchr(location, '\r');
         if (end) {
             *redirect_url = strndup(location, end - location);
-            DEBUG_PRINT("Redirect URL: %s\n", *redirect_url);
+            DEBUG_PRINT("Redirect Location URL: %s\n", *redirect_url);
+
+            // Check if the location starts with "http://" or "https://"
+            if (strncmp(*redirect_url, "http://", 7) == 0 || strncmp(*redirect_url, "https://", 8) == 0) {
+                DEBUG_PRINT("Absolute URL detected.\n");
+            } else {
+                DEBUG_PRINT("Relative URL detected.\n");
+
+                // Handle relative URL
+                char *full_url = NULL;
+                if ((*redirect_url)[0] != '/') {
+                    // Relative URL without a leading slash; replace the path with the new location
+                    full_url = malloc(strlen(current_url_details->host) + strlen(*redirect_url) + 8 + 1);
+                    snprintf(full_url, strlen(current_url_details->host) + strlen(*redirect_url) + 8 + 1,
+                             "http://%s/%s", current_url_details->host, *redirect_url);
+                } else {
+                    // Absolute path (starts with '/'), append to the host
+                    full_url = malloc(strlen(current_url_details->host) + strlen(*redirect_url) + 8);
+                    snprintf(full_url, strlen(current_url_details->host) + strlen(*redirect_url) + 8,
+                             "http://%s%s", current_url_details->host, *redirect_url);
+                }
+
+                free(*redirect_url);
+                *redirect_url = full_url;
+                DEBUG_PRINT("Resolved Full Redirect URL: %s\n", *redirect_url);
+            }
         }
     } else {
+        DEBUG_PRINT("No Location header found.\n");
         *redirect_url = NULL;
     }
 }
