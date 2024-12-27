@@ -7,6 +7,7 @@
 #include <netdb.h>
 
 #define DEFAULT_PORT 80
+#define CHUNK_SIZE 1024
 
 // Define DEBUG to enable debug prints
 #define DEBUG 1
@@ -219,32 +220,58 @@ void send_request(int sock, const char *request) {
     DEBUG_PRINT("Request sent successfully.\n");
 }
 
+
 char *receive_response(int sock, int *response_size) {
     DEBUG_PRINT("Receiving HTTP response.\n");
 
-    char buffer[1024];
+    char chunk[CHUNK_SIZE];
     char *response = NULL;
     size_t total_size = 0;
+    ssize_t received = 0;
 
-    while (1) {
-        int bytes_received = recv(sock, buffer, sizeof(buffer) - 1, 0);
-        if (bytes_received < 0) {
-            perror("recv");
+    do {
+        // null-terminate the chunk buffer
+        memset(chunk, 0, sizeof(chunk));
+
+        // read the response in chunks
+        received = read(sock, chunk, CHUNK_SIZE);
+
+        // if read failed, exit
+        if (received < 0) {
+            perror("Error receiving response");
             free(response);
             close(sock);
-            exit(EXIT_FAILURE);
-        } else if (bytes_received == 0) {
+            return NULL;
+        }
+
+        // If received 0 bytes, the connection was closed
+        if (received == 0) {
+            DEBUG_PRINT("Response received successfully\n");
             break;
         }
 
-        buffer[bytes_received] = '\0';
-        response = realloc(response, total_size + bytes_received + 1);
-        memcpy(response + total_size, buffer, bytes_received + 1);
-        total_size += bytes_received;
+        // reallocate memory for the response buffer
+        response = realloc(response, total_size + received + 1);
+        if (!response) {
+            perror("Memory allocation failed");
+            close(sock);
+            return NULL;
+        }
+
+        // copy the chunk to the response buffer
+        memcpy(response + total_size, chunk, received);
+        total_size += received;
+
+    } while (received > 0);
+
+    // Null-terminate the response string
+    if (response) {
+        response[total_size] = '\0';
     }
 
     *response_size = total_size;
     DEBUG_PRINT("Received response (%ld bytes).\n", total_size);
+
     return response;
 }
 
