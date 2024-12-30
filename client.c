@@ -66,7 +66,9 @@ int main(int argc, char *argv[])
 
     // Receive the server's response
     char *response = receive_response(socket, &response_size);
-    printf("%s\n", response);
+    // Print response by char
+    for (int i = 0; i < response_size; ++i)
+        printf("%c", response[i]);
     printf("\n  Total received response bytes: %d\n", response_size);
 
     // Handle redirects if necessary
