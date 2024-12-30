@@ -32,7 +32,7 @@ void parse_url(const char *url, URLDetails *details);
 char *create_http_request(const URLDetails *details, const char *parameters);
 int connect_to_server(const URLDetails *details);
 void send_request(int sock, const char *request);
-char *receive_response(int sock, int *response_size);
+unsigned char *receive_response(int sock, int *response_size);  // Changed to unsigned char
 void handle_redirect(const char *response, char **redirect_url, const URLDetails *current_url_details);
 void print_usage_and_exit();
 
@@ -65,17 +65,18 @@ int main(int argc, char *argv[])
     send_request(socket, request);
 
     // Receive the server's response
-    char *response = receive_response(socket, &response_size);
-    // Print response by char
+    unsigned char *response = receive_response(socket, &response_size);  // Changed to unsigned char
+    // Print response by unsigned char
     for (int i = 0; i < response_size; ++i)
-        printf("%c", response[i]);
+        printf("%c", response[i]);  // This can remain as %c since we're printing byte values
     printf("\n  Total received response bytes: %d\n", response_size);
 
     // Handle redirects if necessary
-    if (strncmp(response, "HTTP/1.1 3", 10) == 0)
+    if (strncmp((const char *)response, "HTTP/1.1 3", 10) == 0)
     {
         char *redirect_url = NULL;
-        handle_redirect(response, &redirect_url, &details);
+        // Cast response to const char * when calling handle_redirect
+        handle_redirect((const char *)response, &redirect_url, &details);
         if (redirect_url)
         {
             close(socket);
@@ -271,12 +272,12 @@ void send_request(int sock, const char *request)
     DEBUG_PRINT("Request sent successfully.\n");
 }
 
-char *receive_response(int sock, int *response_size)
+unsigned char *receive_response(int sock, int *response_size)
 {
     DEBUG_PRINT("Receiving HTTP response.\n");
 
-    char chunk[CHUNK_SIZE];
-    char *response = NULL;
+    unsigned char chunk[CHUNK_SIZE];
+    unsigned char *response = NULL;
     size_t total_size = 0;
     ssize_t received = 0;
 
@@ -296,7 +297,7 @@ char *receive_response(int sock, int *response_size)
         if (received == 0)
             break;
 
-        char *temp = realloc(response, total_size + received + 1);
+        unsigned char *temp = realloc(response, total_size + received + 1);
         if (!temp) // Check if realloc failed
         {
             perror("Memory allocation failed for response");
@@ -366,6 +367,7 @@ void handle_redirect(const char *response, char **redirect_url, const URLDetails
         *redirect_url = NULL;
     }
 }
+
 
 void print_usage_and_exit()
 {
