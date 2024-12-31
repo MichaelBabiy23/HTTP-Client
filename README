@@ -1,5 +1,6 @@
 # HTTP Client
 Authored by Michael Babiy
+323073734
 
 This project is a simple HTTP client implemented in C. The client constructs an HTTP request from command-line input,
 sends it to a web server, and displays the server's response.
